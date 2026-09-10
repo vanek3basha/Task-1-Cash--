@@ -89,12 +89,6 @@ class cash_t
                 return;
         }
 
-        bool get_ARC(key_T, cash_elem_T& elem)
-        {
-            
-        }
-
-
         ~cash_t()
         {
 
