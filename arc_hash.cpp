@@ -2,13 +2,14 @@
 #include <list>
 #include <iostream>
 #include <vector>
+#include <functional>
 
 //TODO создать hpp
-//TODO сейчас класс принимает обьект только с ключами, нужно добавить функцию для обработки хранилища или дать возможность передать функцию которая это сделает
+//TODO создать class storage
 //TODO класс одновременно должен поддерживать все варианты компиляции 
 //TODO почистить код
 
-template <typename cash_elem_T, typename key_T>
+template <typename value_T, typename key_T>
 class cash_t
 {
     
@@ -16,17 +17,17 @@ class cash_t
         struct cash_T_node_t
         {
             key_T key;
-            cash_elem_T cash_elem;
+            value_T cash_elem;
         };
     
     
         size_t capacity;
         size_t par;
 
-        std::list<cash_T_node_t> cash_list_T1;
-        std::list<cash_T_node_t> cash_list_T2;
-        std::list<key_T> cash_list_B1;
-        std::list<key_T> cash_list_B2;
+        std::list<cash_T_node_t> T1;
+        std::list<cash_T_node_t> T2;
+        std::list<key_T> B1;
+        std::list<key_T> B2;
 
         
         enum ListId
@@ -45,44 +46,34 @@ class cash_t
             B1_HIT,
             T2_HIT,
             B2_HIT,
-            FROM_HIT,
+            LOADER_HIT,
             ERROR_IN_GET
         };
         
         std::unordered_map<key_T, std::pair<typename std::list<cash_T_node_t>::iterator, ListId>> cash_map_T;
         std::unordered_map<key_T, std::pair<typename std::list<key_T>::iterator, ListId>> cash_map_B;
-        std::unordered_map<key_T, cash_elem_T>& storage;
+
+        std::function<bool(key_T, value_T&)> loader;
     
-    using map_T_it_t = typename std::unordered_map<key_T, std::pair<typename std::list<cash_T_node_t>::iterator, ListId>>::iterator;
-    using map_B_it_t = typename std::unordered_map<key_T, std::pair<typename std::list<key_T>::iterator, ListId>>::iterator;
+        using map_T_it_t = typename std::unordered_map<key_T, std::pair<typename std::list<cash_T_node_t>::iterator, ListId>>::iterator;
+        using map_B_it_t = typename std::unordered_map<key_T, std::pair<typename std::list<key_T>::iterator, ListId>>::iterator;
 
-    using list_T_it_t = typename std::list<cash_T_node_t>::iterator;
-    using list_B_it_t = typename std::list<key_T>::iterator;
+        using list_T_it_t = typename std::list<cash_T_node_t>::iterator;
+        using list_B_it_t = typename std::list<key_T>::iterator;
 
-
-    public:
-        cash_t(size_t input_capacity, size_t input_par, std::unordered_map<key_T, cash_elem_T>& input_storage): capacity(input_capacity), par(input_par), storage(input_storage)
-        {
-
-        }
+        /********************************************************************************************************************************/
 
         bool ParIncreased()
         {
             par += 1;
-            if(cash_list_T2.size() >= (capacity - par))
+            if(T2.size() >= (capacity - par))
             {
-                key_T oldest_key_T2 = cash_list_T2.back().key;
-                cash_list_T2.pop_back();
-                cash_list_B2.push_front(oldest_key_T2);
-                cash_map_B.emplace(oldest_key_T2, std::pair{cash_list_B2.begin(), B2_ID});
-                cash_map_T.erase(oldest_key_T2); 
+                remove_T2();
             }
 
-            if(cash_list_B1.size() >= (capacity - par))
+            if(B1.size() >= (capacity - par))
             {
-                key_T oldest_key_B1 = cash_list_B1.back();
-                cash_list_B1.pop_back();
-                cash_map_B.erase(oldest_key_B1);
+                remove_B1();
             }
 
             return 1;
@@ -91,26 +82,64 @@ class cash_t
         bool ParDecreased()
         {
             par -= 1;
-            if(cash_list_T1.size() >= par)
+            if(T1.size() >= par)
             {
-                key_T oldest_key_T1 = cash_list_T1.back().key;
-                cash_list_T1.pop_back();
-                cash_list_B1.push_front(oldest_key_T1);
-                cash_map_B.emplace(oldest_key_T1, std::pair{cash_list_B1.begin(), B1_ID});
-                cash_map_T.erase(oldest_key_T1);                
+                remove_T1();                
             }
 
-            if(cash_list_B2.size() >= par)
+            if(B2.size() >= par)
             {
-                key_T oldest_key_B2 = cash_list_B2.back();
-                cash_list_B2.pop_back();
-                cash_map_B.erase(oldest_key_B2);
+                remove_B2();
             }
 
             return 1;
         }
 
-        GetFlag get_cash(key_T key, cash_elem_T& elem)
+        /********************************************************************************************************************************/
+        
+        void remove_B1()
+        {
+            key_T oldest_key_B1 = B1.back();
+            B1.pop_back();
+            cash_map_B.erase(oldest_key_B1);
+        }
+        
+        void remove_B2()
+        {
+            key_T oldest_key_B2 = B2.back();
+            B2.pop_back();
+            cash_map_B.erase(oldest_key_B2);
+        }
+
+        void remove_T2()
+        {
+            key_T oldest_key_T2 = T2.back().key;
+            T2.pop_back();
+            B2.push_front(oldest_key_T2);
+            cash_map_B.emplace(oldest_key_T2, std::pair{B2.begin(), B2_ID});
+            cash_map_T.erase(oldest_key_T2);
+        }
+
+        void remove_T1()
+        {
+            key_T oldest_key_T1 = T1.back().key;
+            T1.pop_back();
+            B1.push_front(oldest_key_T1);
+            cash_map_B.emplace(oldest_key_T1, std::pair{B1.begin(), B1_ID});
+            cash_map_T.erase(oldest_key_T1);
+        }
+
+
+
+    public:
+        cash_t(size_t input_capacity, size_t input_par, std::function<bool(key_T, value_T&)> input_loader): capacity(input_capacity), par(input_par), loader(input_loader)
+        {
+
+        }
+
+        
+
+        GetFlag get_cash(key_T key, value_T& elem)
         {
             map_T_it_t map_it_T = cash_map_T.find(key);
             
@@ -128,7 +157,7 @@ class cash_t
                 
                 if(list_B_id == B1_ID)
                 {
-                    cash_list_B1.erase(list_B_it);
+                    B1.erase(list_B_it);
                     cash_map_B.erase(map_it_B);
 
                     ParIncreased();
@@ -138,7 +167,7 @@ class cash_t
 
                 if(list_B_id == B2_ID)
                 {
-                    cash_list_B2.erase(list_B_it);
+                    B2.erase(list_B_it);
                     cash_map_B.erase(map_it_B);
                     
                     ParDecreased();
@@ -155,31 +184,26 @@ class cash_t
 
             if(list_T_id == T1_ID)
             {
-                if(cash_list_T2.size() >= (capacity - par))
+                if(T2.size() >= (capacity - par))
                 {
-                    key_T oldest_key_T2 = cash_list_T2.back().key;
-                    cash_list_T2.pop_back();
-                    cash_list_B2.push_front(oldest_key_T2);
-                
-                    cash_map_B.emplace(oldest_key_T2, std::pair{cash_list_B2.begin(), B2_ID});
-                    cash_map_T.erase(oldest_key_T2);
+                    remove_T2();
                 }
 
-                cash_list_T2.splice(cash_list_T2.begin(), cash_list_T1, list_T_it);
+                T2.splice(T2.begin(), T1, list_T_it);
                 map_it_T->second.second = T2_ID;
                 return T1_HIT;
             }
 
             if(list_T_id == T2_ID)
             {
-                cash_list_T2.splice(cash_list_T2.begin(), cash_list_T2, list_T_it);
+                T2.splice(T2.begin(), T2, list_T_it);
                 return T2_HIT;
             }
 
             return ERROR_IN_GET;
         }
 
-        GetFlag get(key_T key, cash_elem_T& elem)
+        GetFlag get(key_T key, value_T& elem)
         {
             GetFlag result_get = get_cash(key, elem);
             
@@ -196,7 +220,7 @@ class cash_t
             if((result_get == B1_HIT) || (result_get == B2_HIT))
             {
                 GetFlag result_get_from = get_from(key, elem);
-                if(result_get_from ==  FROM_HIT)
+                if(result_get_from ==  LOADER_HIT)
                 {
                     put_in_T2(key, elem);
                     return result_get;
@@ -208,10 +232,10 @@ class cash_t
             if(result_get == NO_HIT)
             {
                 GetFlag result_get_from = get_from(key, elem);
-                if(result_get_from == FROM_HIT)
+                if(result_get_from == LOADER_HIT)
                 {
                     put_in_T1(key, elem);
-                    return FROM_HIT;
+                    return LOADER_HIT;
                 }
 
                 return NO_HIT;
@@ -220,82 +244,70 @@ class cash_t
             return ERROR_IN_GET;
         }
 
-        void put_in_T2(key_T key, cash_elem_T elem)
+        void put_in_T2(key_T key, value_T elem)
         {
-            if(cash_list_T2.size() >= (capacity - par))
+            if(T2.size() >= (capacity - par))
             {
-                key_T oldest_key_T2 = cash_list_T2.back().key;
-                cash_list_T2.pop_back();
-                cash_list_B2.push_front(oldest_key_T2);
-                cash_map_B.emplace(oldest_key_T2, std::pair{cash_list_B2.begin(), B2_ID});
-                cash_map_T.erase(oldest_key_T2);
+                remove_T2();
             }
 
-            if(cash_list_B2.size() >= par)
+            if(B2.size() >= par)
             {
-                key_T oldest_key_B2 = cash_list_B2.back();
-                cash_list_B2.pop_back();
-                cash_map_B.erase(oldest_key_B2);
+                remove_B2();
             }
 
-            cash_list_T2.push_front(cash_T_node_t{key, elem});
-            cash_map_T.emplace(key, std::pair{cash_list_T2.begin(), T2_ID});
+            T2.push_front(cash_T_node_t{key, elem});
+            cash_map_T.emplace(key, std::pair{T2.begin(), T2_ID});
             return;
         }
 
-        void put_in_T1(key_T key, cash_elem_T elem)
+        void put_in_T1(key_T key, value_T elem)
         {
-            if(cash_list_T1.size() >= par)
+            if(T1.size() >= par)
             {
-                key_T oldest_key_T1 = cash_list_T1.back().key;
-                cash_list_T1.pop_back();
-                cash_list_B1.push_front(oldest_key_T1);
-                cash_map_B.emplace(oldest_key_T1, std::pair{cash_list_B1.begin(), B1_ID});
-                cash_map_T.erase(oldest_key_T1);
+                remove_T1();
             }
 
-            if(cash_list_B1.size() >= (capacity - par))
+            if(B1.size() >= (capacity - par))
             {
-                key_T oldest_key_B1 = cash_list_B1.back();
-                cash_list_B1.pop_back();
-                cash_map_B.erase(oldest_key_B1);
+                remove_B1();
             }
 
-            cash_list_T1.push_front(cash_T_node_t{key, elem});
-            cash_map_T.emplace(key, std::pair{cash_list_T1.begin(), T1_ID});
+            T1.push_front(cash_T_node_t{key, elem});
+            cash_map_T.emplace(key, std::pair{T1.begin(), T1_ID});
             return;
         }
 
-        GetFlag get_from(key_T key, cash_elem_T& elem)
+        GetFlag get_from(key_T key, value_T& elem)
         {
-            auto it = storage.find(key);
+            bool result  = loader(key, elem);
 
-            if(it == storage.end())
+            if(result == false)
             {
             return NO_HIT;
             }
 
-            elem = it->second;
-
-            return FROM_HIT;
+            return LOADER_HIT;
         }
+
+        /********************************************************************************************************************************/
 
         void print_state()
         {
             std::cout << "\nT1: ";
-            for(auto& node : cash_list_T1)
+            for(auto& node : T1)
                 std::cout << node.key << ' ';
         
             std::cout << "\nT2: ";
-            for(auto& node : cash_list_T2)
+            for(auto& node : T2)
                 std::cout << node.key << ' ';
         
             std::cout << "\nB1: ";
-            for(auto& key : cash_list_B1)
+            for(auto& key : B1)
                 std::cout << key << ' ';
         
             std::cout << "\nB2: ";
-            for(auto& key : cash_list_B2)
+            for(auto& key : B2)
                 std::cout << key << ' ';
         
             std::cout << "\npar = " << par << '\n';
@@ -320,7 +332,21 @@ int main()
         {8, 80}
     };
 
-    cash_t<int, int> cache(4, 2, storage);
+    auto map_loader =
+    [&storage](int key, int& value)
+    {
+        auto it = storage.find(key);
+
+        if(it == storage.end())
+        {
+            return false;
+        }
+
+        value = it->second;
+        return true;
+    };
+
+    cash_t<int, int> cache(4, 2, map_loader);
 
     int value = -1;
 
